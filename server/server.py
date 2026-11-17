@@ -49,6 +49,28 @@ def run(*args, env=None):
     subprocess.run([str(arg) for arg in args], check=True, timeout=100, env=env)
 
 
+
+def remove_texture_background_calls(source):
+    """Remove standalone background setters on declared TextureView variables."""
+    variables = set(re.findall(
+        r"\b(?:android\.view\.)?TextureView\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:;|=)",
+        source,
+    ))
+    removed = 0
+    for variable in sorted(variables):
+        setter = re.compile(
+            r"(?m)^([ \t]*)(?:this\.)?" + re.escape(variable)
+            + r"\.setBackgroundColor\([^\n;]*\);[ \t]*$"
+        )
+        source, count = setter.subn(
+            r"\1{ /* TextureView preview cannot display a background. */ }", source,
+        )
+        removed += count
+    if removed:
+        print(f"Compatibilidade da câmera: removidos {removed} fundos de TextureView.", flush=True)
+    return source
+
+
 def compile_apk(folder, files, name, package):
     sdk = TOOLS / "sdk"
     build_tools = sdk / "android-15"
@@ -66,7 +88,10 @@ def compile_apk(folder, files, name, package):
     for entry in validate(files):
         destination = source / entry["path"]
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(entry["content"], encoding="utf-8")
+        content = entry["content"]
+        if entry["path"].endswith(".java"):
+            content = remove_texture_background_calls(content)
+        destination.write_text(content, encoding="utf-8")
 
     uses_camera = any(
         "android.hardware.camera2" in entry["content"]
