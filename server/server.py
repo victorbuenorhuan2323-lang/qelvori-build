@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -67,12 +68,24 @@ def compile_apk(folder, files, name, package):
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(entry["content"], encoding="utf-8")
 
+    uses_camera = any(
+        "android.hardware.camera2" in entry["content"]
+        or re.search(r"\bCameraManager\b|\bCameraDevice\b|\bManifest\.permission\.CAMERA\b", entry["content"])
+        or "android.permission.CAMERA" in entry["content"]
+        for entry in files if entry["path"].endswith(".java")
+    )
+    camera_manifest = (
+        '<uses-permission android:name="android.permission.CAMERA"/>'
+        '<uses-feature android:name="android.hardware.camera.any" android:required="false"/>'
+        if uses_camera else ""
+    )
     manifest = source / "AndroidManifest.xml"
     manifest.write_text(
         f"""<manifest xmlns:android="http://schemas.android.com/apk/res/android"
  package={quoteattr(package)} android:versionCode="1" android:versionName="1.0">
  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
  <uses-permission android:name="android.permission.INTERNET"/>
+ {camera_manifest}
  <application android:label={quoteattr(name)}
   android:theme="@android:style/Theme.Material.NoActionBar"
   android:allowBackup="false" android:usesCleartextTraffic="false">
