@@ -1,0 +1,46 @@
+name: Patch Qelvoriflix Pro APK (experimental)
+on:
+  workflow_dispatch:
+    inputs:
+      license_server_url:
+        description: HTTPS base URL of the deployed key server
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Configure Key server
+        env:
+          LICENSE_SERVER_URL: ${{ inputs.license_server_url }}
+        run: |
+          test -s input/Qelvoriflix_pro_3.1.2.apk
+          python3 scripts/set_server.py
+      - name: Compile KeyGate DEX
+        run: |
+          gradle --no-daemon :app:assembleDebug
+          unzip -p app/build/outputs/apk/debug/app-debug.apk classes.dex > keygate.dex
+      - name: Inject license gate
+        run: python3 scripts/patch_axml.py input/Qelvoriflix_pro_3.1.2.apk keygate.dex modified-unsigned.apk
+      - name: Align, sign and verify
+        run: |
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$TOOLS/zipalign" -f -P 16 4 modified-unsigned.apk modified-aligned.apk
+          keytool -genkeypair -keyalg RSA -keysize 3072 -alias patch -keystore /tmp/qkey.jks -storepass android -keypass android -validity 1095 -dname 'CN=Qelvoriflix Patch' -noprompt
+          "$TOOLS/apksigner" sign --ks /tmp/qkey.jks --ks-pass pass:android --key-pass pass:android --out Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk modified-aligned.apk
+          "$TOOLS/apksigner" verify --verbose Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Qelvoriflix-Pro-Keys-EXPERIMENTAL
+          path: Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk
