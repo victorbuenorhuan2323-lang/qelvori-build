@@ -1,0 +1,33 @@
+name: Export Android build tools for local APK validation
+on:
+  push:
+    paths:
+      - '.github/workflows/export-android-tools.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install official Android build tools
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "build-tools;35.0.0" "platforms;android-35"
+      - name: Package selected binaries for APK diagnosis
+        run: |
+          mkdir -p export-tools
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" export-tools/
+          cp "$ANDROID_HOME/build-tools/35.0.0/zipalign" export-tools/
+          cp "$ANDROID_HOME/build-tools/35.0.0/aapt2" export-tools/
+          ls -lh export-tools
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-build-tools-validation
+          path: export-tools/*
