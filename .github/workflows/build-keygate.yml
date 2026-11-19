@@ -26,6 +26,16 @@ jobs:
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
+      - name: Configure Qelvoriflix Central HTTPS URL
+        env:
+          LICENSE_SERVER_URL: https://qelvoriflix-central-keys.buenorhuan3.chatgpt.site
+        run: python3 scripts/set_server.py
+      - name: Probe license API (non-blocking)
+        run: |
+          curl -L -sS --max-time 12 -o /tmp/api-response.txt -w 'API HTTP status: %{http_code}\n' \
+            -H 'Content-Type: application/json' --data '{"key":"invalid","device_id":"probe-test-device"}' \
+            https://qelvoriflix-central-keys.buenorhuan3.chatgpt.site/api/license/status || true
+          head -c 250 /tmp/api-response.txt || true
       - name: Build Android KeyGate
         run: gradle --no-daemon :app:assembleDebug
       - name: Extract all compiled DEX files
