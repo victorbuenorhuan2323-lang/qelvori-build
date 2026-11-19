@@ -44,8 +44,11 @@ jobs:
           TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
           "$TOOLS/zipalign" -f -P 16 4 modified-unsigned.apk modified-aligned.apk
           keytool -genkeypair -keyalg RSA -keysize 3072 -alias patch -keystore /tmp/qkey.jks -storepass android -keypass android -validity 1095 -dname 'CN=Qelvoriflix Patch' -noprompt
-          "$TOOLS/apksigner" sign --ks /tmp/qkey.jks --ks-pass pass:android --key-pass pass:android --out Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk modified-aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk
+          "$TOOLS/apksigner" sign --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false --min-sdk-version 21 --ks /tmp/qkey.jks --ks-pass pass:android --key-pass pass:android --out Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk modified-aligned.apk
+          "$TOOLS/apksigner" verify --verbose --print-certs Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk | tee verify.txt
+          grep -q 'Verified using v1 scheme.*true' verify.txt
+          grep -q 'Verified using v2 scheme.*true' verify.txt
+          grep -q 'Verified using v3 scheme.*true' verify.txt
       - uses: actions/upload-artifact@v4
         with:
           name: Qelvoriflix-Pro-Keys-EXPERIMENTAL
