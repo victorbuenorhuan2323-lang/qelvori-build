@@ -35,7 +35,8 @@ jobs:
       - name: Compile KeyGate DEX
         run: |
           gradle --no-daemon :app:assembleDebug
-          unzip -p app/build/outputs/apk/debug/app-debug.apk classes.dex > keygate.dex
+          unzip -p app/build/outputs/apk/debug/app-debug.apk classes2.dex > keygate.dex
+          test -s keygate.dex
       - name: Inject license gate
         run: python3 scripts/patch_axml.py input/Qelvoriflix_pro_3.1.2.apk keygate.dex modified-unsigned.apk
       - name: Align, sign and verify
@@ -44,7 +45,7 @@ jobs:
           "$TOOLS/zipalign" -f -P 16 4 modified-unsigned.apk modified-aligned.apk
           keytool -genkeypair -keyalg RSA -keysize 3072 -alias patch -keystore /tmp/qkey.jks -storepass android -keypass android -validity 1095 -dname 'CN=Qelvoriflix Patch' -noprompt
           "$TOOLS/apksigner" sign --ks /tmp/qkey.jks --ks-pass pass:android --key-pass pass:android --out Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk modified-aligned.apk
-          "$TOOLS/apksigner" verify --verbose Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk
+          "$TOOLS/apksigner" verify --verbose --print-certs Qelvoriflix-Pro-Keys-EXPERIMENTAL.apk
       - uses: actions/upload-artifact@v4
         with:
           name: Qelvoriflix-Pro-Keys-EXPERIMENTAL
