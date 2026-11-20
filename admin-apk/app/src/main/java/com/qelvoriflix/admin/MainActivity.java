@@ -106,6 +106,17 @@ public final class MainActivity extends Activity {
     Button b=new Button(this);b.setText(title);b.setAllCaps(false);b.setTextColor(blue?BG:WHITE);
     b.setBackground(bg(blue?BLUE:0xff263955));parent.addView(b,marg(top));b.setOnClickListener(click);return b;
   }
+  private Button deleteButton(LinearLayout parent,String title,int top,View.OnClickListener click) {
+    Button b=new Button(this);
+    b.setText(title);
+    b.setAllCaps(false);
+    b.setTextColor(0xfffff6f6);
+    b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    b.setBackground(bg(0xff9e2434));
+    parent.addView(b,marg(top));
+    b.setOnClickListener(click);
+    return b;
+  }
   private EditText entry(LinearLayout parent,String hint,int type,int top) {
     EditText e=new EditText(this);e.setSingleLine(true);e.setTextSize(15);e.setTextColor(WHITE);
     e.setHintTextColor(MUTED);e.setHint(hint);e.setInputType(type);
@@ -120,8 +131,18 @@ public final class MainActivity extends Activity {
     ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(BG);
     root=column();root.setPadding(dp(18),dp(22),dp(18),dp(35));scroll.addView(root);
     setContentView(scroll);
-    label(root,"QELVORIFLIX",25,BLUE,true,0);
-    label(root,"CENTRAL DE KEYS  •  ADMIN",12,MUTED,true,3);
+    ImageView logo=new ImageView(this);
+    logo.setImageResource(R.drawable.ic_qelvoriflix_logo);
+    logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    LinearLayout.LayoutParams iconParams=new LinearLayout.LayoutParams(dp(82),dp(82));
+    iconParams.gravity=android.view.Gravity.CENTER_HORIZONTAL;
+    root.addView(logo,iconParams);
+    TextView brand=text("QELVORIFLIX",25,BLUE,true);
+    brand.setGravity(android.view.Gravity.CENTER);
+    root.addView(brand,marg(8));
+    TextView caption=text("CENTRAL DE KEYS  •  ADMIN",12,MUTED,true);
+    caption.setGravity(android.view.Gravity.CENTER);
+    root.addView(caption,marg(3));
   }
   private void loginScreen() {
     showingDashboard=false;busy=false;token="";
@@ -282,6 +303,22 @@ public final class MainActivity extends Activity {
     else button(c,"Revogar acesso",false,9,v->confirm(id,"revoke","Bloquear imediatamente esta Key?"));
     if(k.optBoolean("device_bound"))
       button(c,"Liberar aparelho",false,5,v->confirm(id,"reset-device","Liberar dispositivo vinculado?"));
+    deleteButton(c,"Excluir Key definitivamente",10,
+      v->confirmDelete(id,k.optString("hint","esta Key")));
+  }
+  private void confirmDelete(int id,String keyHint) {
+    new AlertDialog.Builder(this)
+      .setTitle("Excluir licença?")
+      .setMessage("Excluir "+keyHint+" permanentemente do servidor?"+
+        "\n\nEssa ação não pode ser desfeita. A licença deixará de existir e não poderá ser restaurada. "+
+        "Para apenas suspender o acesso, use Revogar acesso.")
+      .setNegativeButton("Cancelar",null)
+      .setPositiveButton("Excluir definitivamente",(d,w)->
+        doCall("DELETE","/api/admin/keys/"+id,null,j->{
+          Toast.makeText(this,"Key excluída permanentemente.",Toast.LENGTH_SHORT).show();
+          refresh();
+        }))
+      .show();
   }
   private void confirm(int id,String action,String message) {
     new AlertDialog.Builder(this).setTitle("Confirmar").setMessage(message)
