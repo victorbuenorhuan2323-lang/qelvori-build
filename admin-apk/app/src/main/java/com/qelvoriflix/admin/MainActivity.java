@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.content.Context;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -20,6 +21,7 @@ import java.net.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
+import java.util.ArrayList;
 
 public final class MainActivity extends Activity {
   private static final int BG=0xff080d15, PANEL=0xff172236, BLUE=0xff369eff, WHITE=0xfff4f8ff, MUTED=0xffa9bdd5;
@@ -31,6 +33,35 @@ public final class MainActivity extends Activity {
   private TextView feedback;
   private String baseUrl="", token="";
   private boolean showingDashboard=false, busy=false;
+  private static final class Countdown {
+    final TextView view;
+    final long initialSeconds;
+    final long startElapsed;
+    Countdown(TextView view,long seconds) {
+      this.view=view;
+      this.initialSeconds=Math.max(0L,seconds);
+      this.startElapsed=SystemClock.elapsedRealtime();
+    }
+  }
+  private final ArrayList<Countdown> countdowns=new ArrayList<>();
+  private static String timeString(long seconds) {
+    long s=Math.max(0L,seconds);
+    return "Restante: "+(s/86400)+"d "+((s%86400)/3600)+"h "+((s%3600)/60)+"min "+(s%60)+"s";
+  }
+  private void paintCountdowns() {
+    long now=SystemClock.elapsedRealtime();
+    for(Countdown row:countdowns) {
+      long elapsedSeconds=Math.max(0L,(now-row.startElapsed)/1000L);
+      row.view.setText(timeString(Math.max(0L,row.initialSeconds-elapsedSeconds)));
+    }
+  }
+  private final Runnable countdownTimer=new Runnable() {
+    @Override public void run() {
+      if(!showingDashboard)return;
+      paintCountdowns();
+      main.postDelayed(this,1000L);
+    }
+  };
   private final Runnable refreshTimer=new Runnable() {
     @Override public void run() {
       if(showingDashboard) { refresh(); main.postDelayed(this,30000); }
@@ -42,9 +73,26 @@ public final class MainActivity extends Activity {
     getWindow().setNavigationBarColor(BG);
     loginScreen();
   }
-  @Override protected void onPause() { main.removeCallbacks(refreshTimer); super.onPause(); }
-  @Override protected void onResume() { super.onResume(); if(showingDashboard) main.postDelayed(refreshTimer,30000); }
-  @Override protected void onDestroy() { main.removeCallbacks(refreshTimer); net.shutdownNow(); super.onDestroy(); }
+  @Override protected void onPause() {
+    main.removeCallbacks(refreshTimer);
+    main.removeCallbacks(countdownTimer);
+    super.onPause();
+  }
+  @Override protected void onResume() {
+    super.onResume();
+    if(showingDashboard) {
+      main.removeCallbacks(refreshTimer);
+      main.removeCallbacks(countdownTimer);
+      main.postDelayed(refreshTimer,30000);
+      main.post(countdownTimer);
+    }
+  }
+  @Override protected void onDestroy() {
+    main.removeCallbacks(refreshTimer);
+    main.removeCallbacks(countdownTimer);
+    net.shutdownNow();
+    super.onDestroy();
+  }
   private int dp(int v) { return Math.round(v*getResources().getDisplayMetrics().density); }
   private GradientDrawable bg(int color) { GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(14));return d; }
   private LinearLayout column() { LinearLayout v=new LinearLayout(this);v.setOrientation(1);return v; }
@@ -76,7 +124,11 @@ public final class MainActivity extends Activity {
     label(root,"CENTRAL DE KEYS  •  ADMIN",12,MUTED,true,3);
   }
   private void loginScreen() {
-    showingDashboard=false;busy=false;token="";main.removeCallbacks(refreshTimer);base();
+    showingDashboard=false;busy=false;token="";
+    countdowns.clear();
+    main.removeCallbacks(refreshTimer);
+    main.removeCallbacks(countdownTimer);
+    base();
     LinearLayout c=card(root,27);label(c,"Entrar no painel",22,WHITE,true,0);
     label(c,"Seu gerador de Keys e controle de acesso.",13,MUTED,false,7);
     SharedPreferences prefs=getSharedPreferences("admin",MODE_PRIVATE);
@@ -161,7 +213,11 @@ public final class MainActivity extends Activity {
     label(root,"Licenças",20,WHITE,true,24);
     button(root,"Atualizar lista",false,5,v->refresh());
     cards=column();root.addView(cards,marg(8));
-    refresh();main.removeCallbacks(refreshTimer);main.postDelayed(refreshTimer,30000);
+    refresh();
+    main.removeCallbacks(refreshTimer);
+    main.removeCallbacks(countdownTimer);
+    main.postDelayed(refreshTimer,30000);
+    main.post(countdownTimer);
   }
   private interface Done { void success(JSONObject v); }
   private void doCall(String method,String path,JSONObject input,Done next) {
@@ -199,6 +255,7 @@ public final class MainActivity extends Activity {
   private void refresh() {
     if(!showingDashboard||busy)return;
     doCall("GET","/api/admin/keys",null,j->{
+      countdowns.clear();
       cards.removeAllViews();
       JSONArray a=j.optJSONArray("keys");
       if(a==null||a.length()==0){label(cards,"Nenhuma Key cadastrada.",14,MUTED,false,8);return;}
@@ -212,8 +269,13 @@ public final class MainActivity extends Activity {
           "revoked".equals(state)?0xffff7b86:WHITE,true,0);
     label(c,k.optInt("weeks")+" semanas  •  "+k.optString("note",""),13,MUTED,false,6);
     long sec=k.optLong("remaining_seconds",0);
-    label(c,"Restante: "+(sec/86400)+"d "+((sec%86400)/3600)+"h "+((sec%3600)/60)+"min",
-          14,BLUE,true,7);
+    TextView remaining=text("active".equals(state)?timeString(sec):
+      "unused".equals(state)?"Prazo começa na primeira ativação":
+      "revoked".equals(state)?"Acesso revogado":
+      "expired".equals(state)?"Licença expirada":"Estado desconhecido",
+      14,BLUE,true);
+    c.addView(remaining,marg(7));
+    if("active".equals(state))countdowns.add(new Countdown(remaining,sec));
     label(c,"Dispositivo: "+(k.optBoolean("device_bound")?"vinculado":"livre"),12,MUTED,false,5);
     if("revoked".equals(state))
       button(c,"Restaurar Key",false,9,v->confirm(id,"restore","Restaurar esta Key?"));
