@@ -223,3 +223,18 @@ def admin_modify(request:Request,row_id:int,action:str):
             db.execute("UPDATE licenses SET device_id=NULL WHERE id=?",(row_id,))
         row=db.execute("SELECT * FROM licenses WHERE id=?",(row_id,)).fetchone()
         return {"ok":True,"license":json_row(row)}
+
+@app.delete("/api/admin/keys/{row_id}")
+def admin_delete_key(request:Request,row_id:int):
+    """Exclusão permanente da licença, protegida pelo token de administrador.
+
+    Após a exclusão, a validação da Key responderá invalid_key.
+    """
+    if not valid_token(request):
+        return rejected("unauthorized","Faça login novamente",401)
+    with LOCK, connection() as db:
+        row=db.execute("SELECT id,hint FROM licenses WHERE id=?",(row_id,)).fetchone()
+        if row is None:
+            return rejected("not_found","Key não encontrada",404)
+        db.execute("DELETE FROM licenses WHERE id=?",(row_id,))
+        return {"ok":True,"deleted":True,"id":row_id,"hint":row["hint"]}
