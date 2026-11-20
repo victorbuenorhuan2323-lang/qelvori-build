@@ -1,0 +1,49 @@
+name: Validar servidor Qelvoriflix
+on:
+  push:
+    branches: [qelvoriflix-servidor-render-2026]
+    paths:
+      - 'license-server/**'
+      - '.github/workflows/check-license-server.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      ADMIN_PASSWORD: test-senha-forte-123
+      SESSION_SECRET: test-secret-abcdefghijklmnopqrstuvwxyz12345678
+      KEY_PEPPER: test-pepper-123456789abcdefghijklmnopqrstuvwxyz
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar dependências
+        run: pip install -r license-server/requirements.txt httpx
+      - name: Verificar sintaxe
+        run: python -m py_compile license-server/main.py
+      - name: Teste de API, ativação e revogação
+        working-directory: license-server
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from main import app
+          c=TestClient(app)
+          assert c.get('/health').json()=={'ok': True}
+          auth=c.post('/api/admin/login',json={'username':'admin','password':'test-senha-forte-123'})
+          assert auth.status_code==200,auth.text
+          h={'Authorization':'Bearer '+auth.json()['token']}
+          create=c.post('/api/admin/keys',json={'weeks':2,'note':'teste'},headers=h)
+          assert create.status_code==200,create.text
+          key=create.json()['key']
+          device='android-device-123456'
+          valid=c.post('/api/v1/activate',json={'key':key,'device_id':device})
+          assert valid.status_code==200,valid.text
+          revoke=c.post('/api/admin/keys/'+str(create.json()['license']['id'])+'/revoke',headers=h)
+          assert revoke.status_code==200,revoke.text
+          blocked=c.post('/api/v1/verify',json={'key':key,'device_id':device})
+          assert blocked.status_code==403 and blocked.json()['status']=='revoked',blocked.text
+          print('PASSOU: login, criação, ativação e revogação')
+          PY
