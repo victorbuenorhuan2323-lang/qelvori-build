@@ -132,7 +132,7 @@ public final class MainActivity extends Activity {
     root=column();root.setPadding(dp(18),dp(22),dp(18),dp(35));scroll.addView(root);
     setContentView(scroll);
     ImageView logo=new ImageView(this);
-    logo.setImageResource(R.drawable.ic_qelvoriflix_logo);
+    logo.setImageResource(R.drawable.qelvoriflix_key_admin_premium);
     logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
     LinearLayout.LayoutParams iconParams=new LinearLayout.LayoutParams(dp(82),dp(82));
     iconParams.gravity=android.view.Gravity.CENTER_HORIZONTAL;

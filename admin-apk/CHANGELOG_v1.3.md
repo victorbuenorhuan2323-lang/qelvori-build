@@ -1,0 +1,2 @@
+# Qelvoriflix Key Admin v1.3
+Novo ícone premium: Q cromado e chave azul neon (imagem gerada). Aplicado no launcher e cabeçalho do aplicativo. Mantidas todas as funções anteriores, incluindo revogação, contador e interface para exclusão. Exclusão depende de backend atualizado.
