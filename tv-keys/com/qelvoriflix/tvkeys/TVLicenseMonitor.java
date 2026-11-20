@@ -140,9 +140,12 @@ public final class TVLicenseMonitor implements Application.ActivityLifecycleCall
     public void onActivityResumed(Activity a){
         if(a instanceof TVKeyGateActivity){running=false;return;}
         running=true;
+        TVVipTextPatch.onActivityResumed(a);
         if(android.os.SystemClock.elapsedRealtime()-lastAttempt>=30000L)verify();
     }
-    public void onActivityPaused(Activity a){}
+    public void onActivityPaused(Activity a){
+        TVVipTextPatch.onActivityPaused(a);
+    }
     public void onActivityCreated(Activity a,Bundle b){}
     public void onActivityStarted(Activity a){}
     public void onActivityStopped(Activity a){}
